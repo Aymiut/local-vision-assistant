@@ -1,1 +1,10 @@
 Roadmap — assistant caméra local.md
+
+# Photos de test (visages : ne pas publier)
+*.jpg
+*.jpeg
+*.png
+__pycache__/
+images/
+
+CLAUDE.md
