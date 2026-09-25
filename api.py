@@ -12,30 +12,30 @@ from mlx_vlm.utils import load_config
 from PIL import Image, UnidentifiedImageError
 
 
-MODELE = os.environ.get("MODELE", "mlx-community/gemma-4-e4b-it-4bit")
-QUESTION_PAR_DEFAUT = "Décris cette image. Combien de personnes ? Quel contexte ?"
+MODEL = os.environ.get("MODEL", "mlx-community/gemma-4-e4b-it-4bit")
+DEFAULT_QUESTION = "Describe this image. How many people? What is the context?"
 
-# MLX lie son travail GPU au thread qui l'a lancé : on charge le modèle et on génère
-# toujours dans ce même thread unique. Les requêtes attendent leur tour dans une file.
+# MLX binds its GPU work to the thread that started it: the model is always loaded and
+# run in this single thread. Requests wait for their turn in a queue.
 gpu = ThreadPoolExecutor(max_workers=1)
-modele = {}
+model = {}
 
 
-def charger():
-    modele["model"], modele["processor"] = load(MODELE)
-    modele["config"] = load_config(MODELE)
+def load_model():
+    model["model"], model["processor"] = load(MODEL)
+    model["config"] = load_config(MODEL)
 
 
-def decrire(image, question):
-    prompt = apply_chat_template(modele["processor"], modele["config"], question, num_images=1)
-    resultat = generate(modele["model"], modele["processor"], prompt, [image], max_tokens=300)
-    return resultat.text
+def describe_image(image, question):
+    prompt = apply_chat_template(model["processor"], model["config"], question, num_images=1)
+    result = generate(model["model"], model["processor"], prompt, [image], max_tokens=300)
+    return result.text
 
 
 @asynccontextmanager
 async def lifespan(app):
-    # Chargé une seule fois au démarrage, pas à chaque requête.
-    await asyncio.get_running_loop().run_in_executor(gpu, charger)
+    # Loaded once at startup, not on every request.
+    await asyncio.get_running_loop().run_in_executor(gpu, load_model)
     yield
     gpu.shutdown()
 
@@ -45,16 +45,16 @@ app = FastAPI(title="local-vision-assistant", lifespan=lifespan)
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "modele": MODELE}
+    return {"status": "ok", "model": MODEL}
 
 
 @app.post("/describe")
-async def describe(image: UploadFile = File(...), question: str = Form(QUESTION_PAR_DEFAUT)):
+async def describe(image: UploadFile = File(...), question: str = Form(DEFAULT_QUESTION)):
     try:
         img = Image.open(io.BytesIO(await image.read())).convert("RGB")
     except UnidentifiedImageError:
-        raise HTTPException(status_code=400, detail="Le fichier envoyé n'est pas une image.")
+        raise HTTPException(status_code=400, detail="The uploaded file is not an image.")
 
-    debut = time.perf_counter()
-    texte = await asyncio.get_running_loop().run_in_executor(gpu, decrire, img, question)
-    return {"description": texte, "duree_s": round(time.perf_counter() - debut, 2)}
+    start = time.perf_counter()
+    text = await asyncio.get_running_loop().run_in_executor(gpu, describe_image, img, question)
+    return {"description": text, "duration_s": round(time.perf_counter() - start, 2)}

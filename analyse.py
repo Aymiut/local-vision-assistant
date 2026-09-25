@@ -3,12 +3,12 @@ from mlx_vlm.prompt_utils import apply_chat_template
 from mlx_vlm.utils import load_config
 
 
-MODELE = "mlx-community/gemma-4-e4b-it-4bit"
+MODEL = "mlx-community/gemma-4-e4b-it-4bit"
 
-model, processor = load(MODELE)
-config = load_config(MODELE)
+model, processor = load(MODEL)
+config = load_config(MODEL)
 
 
-prompt = apply_chat_template(processor, config, "Décris cette image. Combien de personne? Quel contexte?", num_images=1)
-resultat = generate(model, processor, prompt, ["photo2.jpg"], max_tokens=300)
-print(resultat.text)
+prompt = apply_chat_template(processor, config, "Describe this image. How many people? What is the context?", num_images=1)
+result = generate(model, processor, prompt, ["photo2.jpg"], max_tokens=300)
+print(result.text)

@@ -1,11 +1,11 @@
-# Projet assistant caméra local
+# Local camera assistant
 
 
-## Ce qui marche
+## What works
 
-- Phase 1 : une API locale (FastAPI + Gemma via MLX) reçoit une image et renvoie sa description.
+- Phase 1: a local API (FastAPI + Gemma via MLX) receives an image and returns a description of it.
 
-## Lancer l'API
+## Running the API
 
 ```bash
 python3 -m venv camenv && source camenv/bin/activate
