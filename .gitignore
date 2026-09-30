@@ -8,3 +8,6 @@ __pycache__/
 images/
 
 CLAUDE.md
+
+# Logs written by start.sh
+logs/

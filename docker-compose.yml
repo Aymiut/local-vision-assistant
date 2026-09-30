@@ -1,0 +1,17 @@
+services:
+  mediamtx:
+    image: bluenviron/mediamtx:1.21.1
+    ports:
+      - "8554:8554"
+    environment:
+      - MTX_RTSPTRANSPORTS=tcp
+  sampler:
+    depends_on:
+      - mediamtx
+    build:
+      context: ./sampler
+    environment:
+      - STREAM_URL=rtsp://mediamtx:8554/webcam
+      - API_URL=http://host.docker.internal:8000/describe
+      
+      
