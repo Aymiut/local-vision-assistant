@@ -21,3 +21,11 @@ jobs:
           echo "Repository: ${{ github.repository }}"
           echo "Commit: ${{ github.sha }}"
           echo "Actor: ${{ github.actor }}"
+      - name: Scan the image with Trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: 'sampler:${{ github.sha }}'
+          severity: 'CRITICAL'
+          ignore-unfixed: true
+          exit-code: 1
+          version: v0.75.0

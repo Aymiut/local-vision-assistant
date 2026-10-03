@@ -11,7 +11,7 @@ ENV PYTHONUNBUFFERED=1
 
 # Dependencies before the code: editing sampler.py doesn't invalidate the pip install layer.
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && pip uninstall -y pip
 
 COPY sampler.py .
 
