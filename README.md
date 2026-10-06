@@ -13,6 +13,7 @@ No frame is sent to a cloud API: the video stream, the frames and the model all 
 - Phase 3: a GitHub Actions workflow builds the sampler image on every push.
 - Phase 3: Trivy scans the image in CI and fails the pipeline on any fixable critical vulnerability.
 - Phase 3: after a successful scan, CI publishes the image to GHCR, tagged with the commit SHA (`ghcr.io/aymiut/local-vision-assistant/sampler`).
+- Phase 4: MediaMTX and the sampler run in a local k3d cluster (`k8s/`), with the sampler image pulled from GHCR by commit SHA.
 
 ## Architecture
 
@@ -84,6 +85,26 @@ pip install -r requirements.txt
 - For a lighter model (3.3 GB): `MODEL=mlx-community/gemma-4-e2b-it-4bit ./start.sh`.
 - The sampler is configured through environment variables in `docker-compose.yml`: `STREAM_URL`, `API_URL`, `INTERVAL_S`, `QUESTION`.
 
+### On Kubernetes (k3d)
+
+MediaMTX and the sampler can run in a local k3d cluster instead of docker compose (`brew install k3d kubectl`). The API and ffmpeg stay on the Mac.
+
+```bash
+# Once: create the cluster, then deploy MediaMTX and the sampler
+k3d cluster create vision -p 127.0.0.1:8554:8554 --api-port 127.0.0.1:49442
+kubectl apply -f k8s/
+
+# Then, each in its own terminal: the API, the webcam stream, the sampler's logs
+uvicorn api:app --host 127.0.0.1 --port 8000
+ffmpeg -f avfoundation -framerate 30 -video_size 1280x720 -i "0" -c:v libx264 -pix_fmt yuv420p -preset ultrafast -tune zerolatency -g 30 -rtsp_transport tcp -f rtsp rtsp://localhost:8554/webcam
+kubectl logs -f deploy/sampler
+```
+
+- `-p 127.0.0.1:8554:8554` lets ffmpeg publish into the cluster, where a `LoadBalancer` Service forwards to MediaMTX. Binding it, and the Kubernetes API, to `127.0.0.1` keeps both off the local network.
+- docker compose must be stopped, since the cluster takes port 8554.
+- `kubectl config current-context` must print `k3d-vision` before `kubectl apply`.
+- The sampler image comes from GHCR, pinned to a commit SHA in `k8s/sampler.yml`.
+
 ### The API on its own
 
 ```bash
@@ -101,12 +122,12 @@ The interactive documentation is at `http://localhost:8000/docs`.
 | `api.py` | HTTP API in front of the model |
 | `sampler/` | The sampler: script, Dockerfile, dependencies |
 | `docker-compose.yml` | MediaMTX and the sampler |
+| `k8s/` | The same two on Kubernetes: MediaMTX (Deployment + Service) and the sampler (Deployment) |
 | `start.sh` | Starts and stops the whole project |
 | `analyse.py` | The first command-line prototype (same pipeline, no HTTP) |
 
 ## Next steps
 
-- **Kubernetes:** MediaMTX and the sampler move from docker compose to a k3d cluster.
 - **Proving it stays local:** a NetworkPolicy blocks all outbound traffic, except from the sampler to MediaMTX and the API, and a test shows that the Internet is unreachable from the sampler.
 - **Monitoring:** the sampler exposes Prometheus metrics (frames processed, model response time, errors), shown in a Grafana dashboard.
 - **GitOps:** ArgoCD deploys the `k8s/` folder of this repo, so a push is the only way to change the cluster.

@@ -1,0 +1,48 @@
+# MediaMTX, the RTSP server: ffmpeg on the Mac publishes the webcam to it, the sampler reads from it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mediamtx
+spec:
+  # One pod only: the live stream lives in this pod's memory. With two, ffmpeg could publish
+  # to one while the sampler reads from the other, which has no stream.
+  replicas: 1
+  # The Deployment manages the pods that carry this label, so it must match the template's label.
+  selector:
+    matchLabels:
+      app: media
+  # The pod to create, described like any pod: metadata (labels) and spec (containers).
+  template:
+    metadata:
+      labels:
+        app: media
+    spec:
+      containers:
+        - name: mediamtx
+          image: bluenviron/mediamtx:1.21.1
+          # Documentation only: MediaMTX listens on 8554 whether it's declared here or not.
+          ports:
+            - containerPort: 8554
+          env:
+            # RTSP over TCP only: k3d forwards TCP port 8554, not the extra UDP ports RTP would need.
+            - name: MTX_RTSPTRANSPORTS
+              value: "tcp"
+---
+# A fixed address in front of the MediaMTX pod, which gets a new IP each time it restarts.
+# Inside the cluster the Service's name is also a DNS name: the sampler reads rtsp://mediamtx:8554/webcam.
+apiVersion: v1
+kind: Service
+metadata:
+  name: mediamtx
+spec:
+  # Traffic goes to the pods that carry this label.
+  selector:
+    app: media
+  ports:
+    - protocol: TCP
+      port: 8554        # the Service's port
+      targetPort: 8554  # the container's port
+  # LoadBalancer rather than the default ClusterIP, which is only reachable from inside the cluster:
+  # k3s's ServiceLB opens 8554 on the node, and the cluster's `-p 127.0.0.1:8554:8554` maps that port
+  # to the Mac's localhost only, so ffmpeg can publish without the stream being exposed to the network.
+  type: LoadBalancer

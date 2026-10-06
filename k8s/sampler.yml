@@ -1,0 +1,31 @@
+# The sampler: every 10 s, grabs a frame from MediaMTX and sends it to the API on the Mac.
+# No Service: nothing connects to the sampler, it only opens outgoing connections.
+# No startup order either: if MediaMTX or the API isn't up yet, the sampler logs the error and retries.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sampler
+spec:
+  # One pod only: the API handles one request at a time, so a second sampler would only grow the queue.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sampler
+  template:
+    metadata:
+      labels:
+        app: sampler
+    spec:
+      containers:
+        - name: sampler
+          # The image CI built, scanned with Trivy and pushed to GHCR, tagged with its commit's full SHA:
+          # the cluster runs exactly the scanned image. The package is public, so no pull credentials.
+          # It's built on GitHub's amd64 runner: on the Mac's arm64 node it runs under emulation.
+          image: ghcr.io/aymiut/local-vision-assistant/sampler:c087445ca5964dcf2ad386d83fdb1865238de8f3
+          env:
+            # The MediaMTX Service's name, resolved by the cluster's DNS.
+            - name: STREAM_URL
+              value: "rtsp://mediamtx:8554/webcam"
+            # The API stays on the Mac (it needs the Apple GPU): Docker Desktop routes host.docker.internal to it.
+            - name: API_URL
+              value: "http://host.docker.internal:8000/describe"
