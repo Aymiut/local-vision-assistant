@@ -12,6 +12,7 @@ No frame is sent to a cloud API: the video stream, the frames and the model all 
 - Phase 2: `./start.sh` starts everything with one command (API, webcam stream, and MediaMTX + sampler with docker compose); Ctrl+C stops it all, camera included.
 - Phase 3: a GitHub Actions workflow builds the sampler image on every push.
 - Phase 3: Trivy scans the image in CI and fails the pipeline on any fixable critical vulnerability.
+- Phase 3: after a successful scan, CI publishes the image to GHCR, tagged with the commit SHA (`ghcr.io/aymiut/local-vision-assistant/sampler`).
 
 ## Architecture
 
@@ -105,7 +106,6 @@ The interactive documentation is at `http://localhost:8000/docs`.
 
 ## Next steps
 
-- **CI:** GitHub Actions builds the sampler image, Trivy fails the build on critical vulnerabilities, and the image is published to GHCR.
 - **Kubernetes:** MediaMTX and the sampler move from docker compose to a k3d cluster.
 - **Proving it stays local:** a NetworkPolicy blocks all outbound traffic, except from the sampler to MediaMTX and the API, and a test shows that the Internet is unreachable from the sampler.
 - **Monitoring:** the sampler exposes Prometheus metrics (frames processed, model response time, errors), shown in a Grafana dashboard.
