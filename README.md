@@ -14,6 +14,7 @@ No frame is sent to a cloud API: the video stream, the frames and the model all 
 - Phase 3: Trivy scans the image in CI and fails the pipeline on any fixable critical vulnerability.
 - Phase 3: after a successful scan, CI publishes the image to GHCR, tagged with the commit SHA (`ghcr.io/aymiut/local-vision-assistant/sampler`).
 - Phase 4: MediaMTX and the sampler run in a local k3d cluster (`k8s/`), with the sampler image pulled from GHCR by commit SHA.
+- Phase 5: NetworkPolicies deny all egress in the cluster; the sampler may only reach DNS, MediaMTX and the API on the Mac.
 
 ## Architecture
 
