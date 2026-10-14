@@ -2,7 +2,7 @@
 
 A Mac's webcam films, a vision-language model running locally (Gemma via Apple's MLX) describes what it sees every 10 seconds, and the whole thing is deployed like production infrastructure: docker compose today, then CI, Kubernetes, network isolation, monitoring and GitOps.
 
-No frame is sent to a cloud API: the video stream, the frames and the model all stay on the Mac.
+No frame is sent to a cloud API: the video stream, the frames and the model all stay on the Mac. On Kubernetes this is proven, not just promised: NetworkPolicies block every outgoing connection except the sampler's to MediaMTX and the API, and `scripts/netcheck.py` shows from inside the sampler that the Internet is unreachable.
 
 ## What works
 
@@ -15,6 +15,7 @@ No frame is sent to a cloud API: the video stream, the frames and the model all 
 - Phase 3: after a successful scan, CI publishes the image to GHCR, tagged with the commit SHA (`ghcr.io/aymiut/local-vision-assistant/sampler`).
 - Phase 4: MediaMTX and the sampler run in a local k3d cluster (`k8s/`), with the sampler image pulled from GHCR by commit SHA.
 - Phase 5: NetworkPolicies deny all egress in the cluster; the sampler may only reach DNS, MediaMTX and the API on the Mac.
+- Phase 5: `scripts/netcheck.py` proves it from inside the sampler pod: MediaMTX and the API are reachable, the Internet is not.
 
 ## Architecture
 
@@ -99,12 +100,16 @@ kubectl apply -f k8s/
 uvicorn api:app --host 127.0.0.1 --port 8000
 ffmpeg -f avfoundation -framerate 30 -video_size 1280x720 -i "0" -c:v libx264 -pix_fmt yuv420p -preset ultrafast -tune zerolatency -g 30 -rtsp_transport tcp -f rtsp rtsp://localhost:8554/webcam
 kubectl logs -f deploy/sampler
+
+# Check the network isolation from inside the sampler (exits with 1 if a check fails)
+kubectl exec -i deploy/sampler -- python - < scripts/netcheck.py
 ```
 
 - `-p 127.0.0.1:8554:8554` lets ffmpeg publish into the cluster, where a `LoadBalancer` Service forwards to MediaMTX. Binding it, and the Kubernetes API, to `127.0.0.1` keeps both off the local network.
 - docker compose must be stopped, since the cluster takes port 8554.
 - `kubectl config current-context` must print `k3d-vision` before `kubectl apply`.
 - The sampler image comes from GHCR, pinned to a commit SHA in `k8s/sampler.yml`.
+- `netcheck.py` needs the API running: from the pod, a blocked port and a closed one look the same. DNS lookups of outside names still succeed, since CoreDNS forwards them; what the policies block is every connection.
 
 ### The API on its own
 
@@ -123,12 +128,12 @@ The interactive documentation is at `http://localhost:8000/docs`.
 | `api.py` | HTTP API in front of the model |
 | `sampler/` | The sampler: script, Dockerfile, dependencies |
 | `docker-compose.yml` | MediaMTX and the sampler |
-| `k8s/` | The same two on Kubernetes: MediaMTX (Deployment + Service) and the sampler (Deployment) |
+| `k8s/` | The same two on Kubernetes: MediaMTX (Deployment + Service), the sampler (Deployment) and the NetworkPolicies |
+| `scripts/netcheck.py` | Checks the network isolation from inside the sampler pod |
 | `start.sh` | Starts and stops the whole project |
 | `analyse.py` | The first command-line prototype (same pipeline, no HTTP) |
 
 ## Next steps
 
-- **Proving it stays local:** a NetworkPolicy blocks all outbound traffic, except from the sampler to MediaMTX and the API, and a test shows that the Internet is unreachable from the sampler.
 - **Monitoring:** the sampler exposes Prometheus metrics (frames processed, model response time, errors), shown in a Grafana dashboard.
 - **GitOps:** ArgoCD deploys the `k8s/` folder of this repo, so a push is the only way to change the cluster.
